@@ -16,7 +16,7 @@ pub mod textgen;
 pub mod tui;
 pub mod wordlists;
 
-use std::io::StdinLock;
+use std::io::{StdinLock, Write};
 use std::path::PathBuf;
 use std::time::Instant;
 
@@ -27,6 +27,9 @@ use termion::{color, event::Key, input::TermRead};
 use textgen::{RawWordSelector, WordSelector};
 use tui::{Text, ToipeTui};
 use wordlists::{BuiltInWordlist, OS_WORDLIST_PATH};
+
+use std::fs::OpenOptions;
+use std::path::Path;
 
 /// Typing test terminal UI and logic.
 pub struct Toipe {
@@ -90,6 +93,19 @@ impl<'a> Toipe {
                     msg: "Undefined word list or path.".to_string(),
                 });
             };
+        
+        let path = Path::new(&config.result_file);
+        let mut file = match OpenOptions::new().write(true).create(true).open(path) {
+            Err(why) => panic!("couldn't create result file: {}", why),
+            Ok(file) => file,
+        };
+
+        let resultfile_header = "total_chars_in_text,total_typed_chars,total_words,acc,total_char_errors,final_correct_chars,final_uncorrected_errs,test_duration\n";
+
+        let _result = match file.write_all(resultfile_header.as_bytes()) {
+            Err(why) => panic!("Couldn't write header to result file: {}", why),
+            Ok(result) => result
+        };
 
         let mut toipe = Toipe {
             tui: ToipeTui::new(),
@@ -333,8 +349,43 @@ impl<'a> Toipe {
             }
         }
 
+        let _result = self.persist_results(results);
+
         self.tui.show_cursor()?;
 
         Ok(to_restart.unwrap_or(false))
     }
+
+    fn persist_results(&mut self, results: ToipeResults) -> std::io::Result<()> {
+        let path = Path::new("results.csv");
+        let display = path.display();
+
+        let result_string = format!(
+            "{0},{1},{2},{3:.2},{4},{5},{6},{7}\n",
+            results.total_chars_in_text,
+            results.total_chars_typed,
+            results.total_words,
+            results.accuracy(),
+            results.total_char_errors,
+            results.final_chars_typed_correctly,
+            results.final_uncorrected_errors,
+            results.duration().as_secs()
+        );
+
+        let mut file = match OpenOptions::new().append(true).open(path) {
+            Err(why) => panic!("couldn't create {}: {}", display, why),
+            Ok(file) => file,
+        };
+
+        file.write_all(result_string.as_bytes())
+    }
+
+    // fn display_past_results(&mut self, config: ToipeConfig) -> Result<bool, ToipeError> {
+
+    //     self.tui.reset_screen()?;
+    //     let mut rdr = csv::Reader::from_path("results.csv")?;
+    //     for rec in rdr.records() {
+    //         println!("{:?}", &rec);
+    //     }    
+    // }
 }

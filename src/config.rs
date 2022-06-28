@@ -31,6 +31,9 @@ pub struct ToipeConfig {
     /// Number of words to show on each test.
     #[clap(short, long, default_value_t = 30)]
     pub num_words: usize,
+    /// Name of file to store test results in after completion
+    #[clap(short = 'r', long = "result", default_value = "results.csv")]
+    pub result_file: String,
 }
 
 impl ToipeConfig {
